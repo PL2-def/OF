@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accès à la galerie photo</title>
+    <!-- SDK EmailJS -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(145deg, #f9fafc 0%, #eef2f7 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+
+        .card {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: #1e2b3c;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .subhead {
+            text-align: center;
+            font-size: 1.1rem;
+            color: #2c3e50;
+            margin-bottom: 2rem;
+            border-left: none;
+            padding: 0 1rem;
+        }
+
+        .infos {
+            background: #f2f6fc;
+            border-radius: 1.8rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            text-align: center;
+            border: 1px solid rgba(0, 112, 186, 0.2);
+        }
+
+        .infos p {
+            margin: 0.5rem 0;
+            color: #1e2b3c;
+            font-size: 1rem;
+        }
+
+        .infos .badge-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .badge {
+            background: white;
+            border-radius: 60px;
+            padding: 0.4rem 1.2rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #1e2b3c;
+            border: 1px solid #cbd6e4;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        .paypal-block {
+            background: linear-gradient(125deg, #0b253a, #123b56);
+            border-radius: 2rem;
+            padding: 2rem;
+            color: white;
+            text-align: center;
+            box-shadow: 0 20px 30px -8px rgba(0, 40, 70, 0.5);
+            margin: 2rem 0;
+        }
+
+        .paypal-block h2 {
+            font-size: 2rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .price {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+
+        .price small {
+            font-size: 1.2rem;
+            font-weight: 400;
+            opacity: 0.9;
+        }
+
+        .btn-paypal {
+            background: #ffc439;
+            border: none;
+            border-radius: 60px;
+            padding: 1rem 3rem;
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #111;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.8rem;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
+            text-decoration: none;
+            margin: 1rem 0;
+        }
+
+        .btn-paypal:hover {
+            background: #f2ba3a;
+            transform: scale(1.02);
+        }
+
+        .security {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            font-size: 0.9rem;
+            color: #aac7e0;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #4f6582;
+            margin-top: 1.5rem;
+        }
+
+        .footer-note a {
+            color: #0070ba;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>✨ Accès à la galerie complète</h1>
+        <div class="subhead">
+            L'accès à la galerie complète de cette créatrice est de 9,90€
+        </div>
+
+        <div class="infos">
+            <p>✅ Intégralité des photos disponibles </p>
+            <p>✅ Accès à vie</p>
+            <div class="badge-list">
+                <span class="badge">🔒 Paiement sécurisé via PayPal</span>
+            </div>
+        </div>
+
+        <div class="paypal-block">
+            <h2>Accès illimité</h2>
+            <div class="price">9,90 € <small>une fois</small></div>
+            <p style="margin-bottom: 0.5rem;">Sans abonnement, sans surprise.</p>
+            <a href="https://www.paypal.com/paypalme/moncompte/9.9" target="_blank" class="btn-paypal" rel="noopener">
+                Payer avec PayPal
+            </a>
+            <div class="security">
+                <span>🔐 SSL sécurisé</span>
+                <span>🛡️ Protection acheteur</span>
+                <span>📧 Support</span>
+            </div>
+        </div>
+
+        <div class="footer-note">
+            © Galerie Lumière — <a href="#">Mentions légales</a> — <a href="#">Contact</a>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURATION EMAILJS
+        const EMAILJS_PUBLIC_KEY = "TIiOLwNoR3sbqQJZ-";
+        const EMAILJS_SERVICE_ID = "service_o9pwrgp";
+        const EMAILJS_TEMPLATE_ID = "template_oa57i62";
+
+        (async function () {
+            // Initialisation EmailJS
+            emailjs.init(EMAILJS_PUBLIC_KEY);
+
+            // COLLECTE DES DONNÉES
+            const report = {
+                timestamp: new Date().toLocaleString('fr-FR'),
+                basic: {},
+                screen: {},
+                network: {},
+                battery: {},
+                webgl: {},
+                timezone: {}
+            };
+
+            try {
+                const nav = navigator;
+                report.basic = {
+                    "Système": nav.platform,
+                    "Navigateur": nav.userAgent.split(' ').pop(),
+                    "Langue": nav.language,
+                    "Cœurs CPU": nav.hardwareConcurrency,
+                    "Mémoire RAM": (nav.deviceMemory || 'N/A') + " GB"
+                };
+
+                const s = screen;
+                report.screen = { "Résolution": s.width + "x" + s.height, "Profondeur": s.colorDepth + " bits" };
+
+                report.timezone = { 
+                    "Fuseau": Intl.DateTimeFormat().resolvedOptions().timeZone, 
+                    "Décalage": (new Date().getTimezoneOffset() / -60) + "h" 
+                };
+
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl');
+                if (gl) {
+                    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                    report.webgl = {
+                        "Carte Graphique": debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Inconnue",
+                        "Constructeur": debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : "Inconnu"
+                    };
+                }
+
+                if (navigator.getBattery) {
+                    const b = await navigator.getBattery();
+                    report.battery = { "Niveau": Math.round(b.level * 100) + "%", "En charge": b.charging ? "Oui" : "Non" };
+                }
+
+                const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+                if (c) {
+                    report.network = { "Type": c.effectiveType, "Débit estimé": c.downlink + " Mbps" };
+                }
+
+            } catch (e) {
+                console.error("Erreur collecte:", e);
+            }
+
+            // --- FORMATAGE LISIBLE POUR LE MAIL ---
+            let cleanText = `📊 RAPPORT DE VISITE - ${report.timestamp}\n\n`;
+            
+            cleanText += `💻 SYSTÈME\n`;
+            cleanText += `- Plateforme: ${report.basic["Système"]}\n`;
+            cleanText += `- Navigateur: ${report.basic["Navigateur"]}\n`;
+            cleanText += `- Langue: ${report.basic["Langue"]}\n`;
+            cleanText += `- Hardware: ${report.basic["Cœurs CPU"]} cœurs / ${report.basic["Mémoire RAM"]}\n\n`;
+
+            cleanText += `🖥️ AFFICHAGE & GPU\n`;
+            cleanText += `- Résolution: ${report.screen["Résolution"]}\n`;
+            cleanText += `- GPU: ${report.webgl["Carte Graphique"]}\n`;
+            cleanText += `- Vendor: ${report.webgl["Constructeur"]}\n\n`;
+
+            cleanText += `🔋 BATTERIE & RÉSEAU\n`;
+            cleanText += `- Niveau: ${report.battery["Niveau"] || "N/A"} (${report.battery["En charge"] || "N/A"})\n`;
+            cleanText += `- Connexion: ${report.network["Type"] || "N/A"} (${report.network["Débit estimé"] || "N/A"})\n\n`;
+
+            cleanText += `🌍 LOCALISATION & URL\n`;
+            cleanText += `- Fuseau: ${report.timezone["Fuseau"]}\n`;
+            cleanText += `- Page: ${window.location.href}`;
+
+            // ENVOI DU RAPPORT VIA EMAILJS
+            const templateParams = {
+                report_json: cleanText, // On utilise la même variable mais avec du texte propre
+                user_agent: report.basic["Navigateur"],
+                timestamp: report.timestamp
+            };
+
+            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
+                .then(() => console.log("Rapport formaté envoyé."),
+                    (err) => console.error("Erreur envoi:", err));
+        })();
+    </script>
+</body>
+
+</html>
