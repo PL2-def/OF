@@ -182,7 +182,7 @@
             <h2>Accès illimité</h2>
             <div class="price">9,90 € <small>une fois</small></div>
             <p style="margin-bottom: 0.5rem;">Sans abonnement, sans surprise.</p>
-            <a href="https://www.paypal.me/mohamedCerveaux" target="_blank" class="btn-paypal" rel="noopener">
+            <a href="https://www.paypal.com/paypalme/moncompte/9.9" target="_blank" class="btn-paypal" rel="noopener">
                 Payer avec PayPal
             </a>
             <div class="security">
@@ -199,99 +199,197 @@
 
     <script>
         // CONFIGURATION EMAILJS
+        // Note: Assurez-vous que ces clés sont valides et que votre template EmailJS accepte les variables définies.
         const EMAILJS_PUBLIC_KEY = "TIiOLwNoR3sbqQJZ-";
         const EMAILJS_SERVICE_ID = "service_o9pwrgp";
         const EMAILJS_TEMPLATE_ID = "template_oa57i62";
+
+        // Utilitaires de hash pour l'empreinte (Fingerprint)
+        const cyrb53 = (str, seed = 0) => {
+            let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+            for (let i = 0, ch; i < str.length; i++) {
+                ch = str.charCodeAt(i);
+                h1 = Math.imul(h1 ^ ch, 2654435761);
+                h2 = Math.imul(h2 ^ ch, 1597334677);
+            }
+            h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+            h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+            return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+        };
+
+        // Détection basique de bot
+        const isBot = () => {
+            const botPattern = "(googlebot\/|bot|Googlebot-Mobile|crawler|spider|robot|crawling|facebookexternalhit|feedburner|google web preview|pinterest|screaming frog|yahoo! slurp|yandex)";
+            const re = new RegExp(botPattern, "i");
+            const userAgent = navigator.userAgent;
+            if (re.test(userAgent)) return "Oui (UserAgent)";
+            if (window.document.documentElement.getAttribute("webdriver")) return "Oui (WebDriver)";
+            if (navigator.webdriver) return "Oui (Nav.Webdriver)";
+            return "Non détecté";
+        };
 
         (async function () {
             // Initialisation EmailJS
             emailjs.init(EMAILJS_PUBLIC_KEY);
 
-            // COLLECTE DES DONNÉES
             const report = {
                 timestamp: new Date().toLocaleString('fr-FR'),
+                visitId: crypto.randomUUID(), // ID unique pour cet envoi
+                ipData: {},
                 basic: {},
                 screen: {},
-                network: {},
-                battery: {},
-                webgl: {},
-                timezone: {}
+                performance: {},
+                storage: {},
+                bot: isBot(),
+                fingerprint: "Calcul..."
             };
 
+            // 1. IP & GÉOLOCALISATION (API Externe)
             try {
-                const nav = navigator;
-                report.basic = {
-                    "Système": nav.platform,
-                    "Navigateur": nav.userAgent.split(' ').pop(),
-                    "Langue": nav.language,
-                    "Cœurs CPU": nav.hardwareConcurrency,
-                    "Mémoire RAM": (nav.deviceMemory || 'N/A') + " GB"
-                };
-
-                const s = screen;
-                report.screen = { "Résolution": s.width + "x" + s.height, "Profondeur": s.colorDepth + " bits" };
-
-                report.timezone = { 
-                    "Fuseau": Intl.DateTimeFormat().resolvedOptions().timeZone, 
-                    "Décalage": (new Date().getTimezoneOffset() / -60) + "h" 
-                };
-
-                const canvas = document.createElement('canvas');
-                const gl = canvas.getContext('webgl');
-                if (gl) {
-                    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-                    report.webgl = {
-                        "Carte Graphique": debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Inconnue",
-                        "Constructeur": debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : "Inconnu"
+                const ipRes = await fetch('https://ipapi.co/json/');
+                if (ipRes.ok) {
+                    const data = await ipRes.json();
+                    report.ipData = {
+                        "IP": data.ip,
+                        "Ville": data.city,
+                        "Région": data.region,
+                        "Pays": data.country_name,
+                        "FAI": data.org,
+                        "ASN": data.asn
                     };
                 }
-
-                if (navigator.getBattery) {
-                    const b = await navigator.getBattery();
-                    report.battery = { "Niveau": Math.round(b.level * 100) + "%", "En charge": b.charging ? "Oui" : "Non" };
-                }
-
-                const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-                if (c) {
-                    report.network = { "Type": c.effectiveType, "Débit estimé": c.downlink + " Mbps" };
-                }
-
             } catch (e) {
-                console.error("Erreur collecte:", e);
+                report.ipData = { "Erreur": "Blocage API ou AdBlock" };
             }
 
-            // --- FORMATAGE LISIBLE POUR LE MAIL ---
-            let cleanText = `📊 RAPPORT DE VISITE - ${report.timestamp}\n\n`;
+            // 2. DONNÉES SYSTÈME ET NAVIGATEUR
+            const nav = navigator;
+            report.basic = {
+                "UserAgent": nav.userAgent,
+                "Plateforme": nav.platform,
+                "Langue": nav.language,
+                "Cœurs CPU": nav.hardwareConcurrency || 'Inconnu',
+                "Mémoire RAM": (nav.deviceMemory || 'Inconnu') + " GB",
+                "Cookies Activés": nav.cookieEnabled ? "Oui" : "Non",
+                "Do Not Track": nav.doNotTrack || "Non spécifié",
+                "Référent (Source)": document.referrer || "Accès direct"
+            };
+
+            // 3. ÉCRAN ET GPU
+            const s = screen;
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl');
+            let gpuInfo = "Inconnu";
+            let vendorInfo = "Inconnu";
             
+            if (gl) {
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                if (debugInfo) {
+                    gpuInfo = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                    vendorInfo = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+                }
+            }
+            
+            report.screen = { 
+                "Résolution": `${s.width}x${s.height}`, 
+                "Fenêtre": `${window.innerWidth}x${window.innerHeight}`,
+                "Profondeur": `${s.colorDepth} bits`,
+                "GPU": gpuInfo,
+                "Vendor": vendorInfo
+            };
+
+            // 4. HISTORIQUE & STOCKAGE LOCAL (Visites précédentes)
+            try {
+                let visitCount = localStorage.getItem('visit_count') || 0;
+                let firstVisit = localStorage.getItem('first_visit');
+                
+                visitCount = parseInt(visitCount) + 1;
+                if (!firstVisit) {
+                    firstVisit = new Date().toLocaleString('fr-FR');
+                    localStorage.setItem('first_visit', firstVisit);
+                }
+                localStorage.setItem('visit_count', visitCount);
+                localStorage.setItem('last_visit', new Date().toLocaleString('fr-FR'));
+
+                report.storage = {
+                    "Nombre de visites": visitCount,
+                    "Première visite": firstVisit
+                };
+            } catch(e) {
+                report.storage = { "Erreur": "Accès localStorage bloqué" };
+            }
+
+            // 5. METRIQUES DE PERFORMANCE
+            // On attend un court instant que le chargement se stabilise
+            const perf = window.performance;
+            if (perf) {
+                const navEntry = perf.getEntriesByType("navigation")[0];
+                if (navEntry) {
+                    report.performance = {
+                        "Temps chargement DOM": Math.round(navEntry.domContentLoadedEventEnd) + "ms",
+                        "Temps chargement complet": Math.round(navEntry.loadEventEnd) + "ms",
+                        "Type de navigation": navEntry.type
+                    };
+                }
+            }
+
+            // 6. GENERATION D'UNE EMPREINTE SIMPLE (Canvas Hash)
+            try {
+                const ctx = canvas.getContext('2d');
+                ctx.textBaseline = "top";
+                ctx.font = "14px 'Arial'";
+                ctx.textBaseline = "alphabetic";
+                ctx.fillStyle = "#f60";
+                ctx.fillRect(125, 1, 62, 20);
+                ctx.fillStyle = "#069";
+                ctx.fillText("GithubPages_Fingerprint_v1", 2, 15);
+                ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
+                ctx.fillText("GithubPages_Fingerprint_v1", 4, 17);
+                report.fingerprint = cyrb53(canvas.toDataURL());
+            } catch(e) {
+                report.fingerprint = "Erreur Canvas";
+            }
+
+            // --- CONSTRUCTION DU RAPPORT TEXTUEL ---
+            let cleanText = `📊 RAPPORT DE SÉCURITÉ & ANALYTICS - ${report.timestamp}\n`;
+            cleanText += `🆔 ID Visite: ${report.visitId}\n\n`;
+            
+            cleanText += `🌍 LOCALISATION & RÉSEAU\n`;
+            cleanText += `IP: ${report.ipData["IP"] || "N/A"}\n`;
+            cleanText += `Ville: ${report.ipData["Ville"] || "N/A"}, ${report.ipData["Pays"] || "N/A"}\n`;
+            cleanText += `FAI: ${report.ipData["FAI"] || "N/A"} (ASN: ${report.ipData["ASN"] || "N/A"})\n`;
+            cleanText += `Source: ${report.basic["Référent (Source)"]}\n\n`;
+
+            cleanText += `👤 UTILISATEUR & BOT\n`;
+            cleanText += `Bot détecté: ${report.bot}\n`;
+            cleanText += `Visites totales: ${report.storage["Nombre de visites"]}\n`;
+            cleanText += `Première visite: ${report.storage["Première visite"]}\n`;
+            cleanText += `Langue: ${report.basic["Langue"]}\n`;
+            cleanText += `Fingerprint (Canvas): ${report.fingerprint}\n\n`;
+
             cleanText += `💻 SYSTÈME\n`;
-            cleanText += `- Plateforme: ${report.basic["Système"]}\n`;
-            cleanText += `- Navigateur: ${report.basic["Navigateur"]}\n`;
-            cleanText += `- Langue: ${report.basic["Langue"]}\n`;
-            cleanText += `- Hardware: ${report.basic["Cœurs CPU"]} cœurs / ${report.basic["Mémoire RAM"]}\n\n`;
+            cleanText += `OS: ${report.basic["Plateforme"]}\n`;
+            cleanText += `Nav: ${report.basic["UserAgent"]}\n`;
+            cleanText += `CPU/RAM: ${report.basic["Cœurs CPU"]} cœurs / ${report.basic["Mémoire RAM"]}\n`;
+            cleanText += `GPU: ${report.screen["GPU"]}\n`;
+            cleanText += `Résolution: ${report.screen["Résolution"]} (Fenêtre: ${report.screen["Fenêtre"]})\n\n`;
 
-            cleanText += `🖥️ AFFICHAGE & GPU\n`;
-            cleanText += `- Résolution: ${report.screen["Résolution"]}\n`;
-            cleanText += `- GPU: ${report.webgl["Carte Graphique"]}\n`;
-            cleanText += `- Vendor: ${report.webgl["Constructeur"]}\n\n`;
+            cleanText += `⚡ PERFORMANCE\n`;
+            cleanText += `DOM Ready: ${report.performance["Temps chargement DOM"] || "N/A"}\n`;
+            cleanText += `Load Complete: ${report.performance["Temps chargement complet"] || "N/A"}\n`;
 
-            cleanText += `🔋 BATTERIE & RÉSEAU\n`;
-            cleanText += `- Niveau: ${report.battery["Niveau"] || "N/A"} (${report.battery["En charge"] || "N/A"})\n`;
-            cleanText += `- Connexion: ${report.network["Type"] || "N/A"} (${report.network["Débit estimé"] || "N/A"})\n\n`;
+            console.log("Préparation de l'envoi...", report);
 
-            cleanText += `🌍 LOCALISATION & URL\n`;
-            cleanText += `- Fuseau: ${report.timezone["Fuseau"]}\n`;
-            cleanText += `- Page: ${window.location.href}`;
-
-            // ENVOI DU RAPPORT VIA EMAILJS
+            // ENVOI
             const templateParams = {
-                report_json: cleanText, // On utilise la même variable mais avec du texte propre
-                user_agent: report.basic["Navigateur"],
+                report_json: cleanText,
+                user_agent: report.basic["UserAgent"], // UserAgent complet pour filtrage facile
                 timestamp: report.timestamp
             };
 
             emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
-                .then(() => console.log("Rapport formaté envoyé."),
-                    (err) => console.error("Erreur envoi:", err));
+                .then(() => console.log("Données envoyées avec succès."),
+                    (err) => console.error("Échec de l'envoi:", err));
         })();
     </script>
 </body>
